@@ -1,6 +1,6 @@
 /*
 Quartam Color Library for LiveCode [libqrtcolor.livecode]
-Copyright (C) 2011-2012 Quartam Software / Jan Schenkel
+Copyright (C) 2011-2015 Quartam Software / Jan Schenkel
 
 This program is free software; you can redistribute it and/or modify 
 it under the terms of the GNU Lesser General Public License as 
@@ -64,12 +64,7 @@ function qrtColor_VersionNumber
 end qrtColor_VersionNumber
 
 command qrtColor_ResetNamedColors
-   put empty into sNamedColorsA
-   p_qrtColor_LoadLiveCodeColors
-   p_qrtColor_LoadCSS3Colors
-   if the platform is "Win32" then
-      p_qrtColor_LoadWindowsColors
-   end if
+   p_qrtColor_ResetNamedColors
 end qrtColor_ResetNamedColors
 
 command qrtColor_AddNamedColor pColorName, pRGBTriplet
@@ -155,56 +150,18 @@ end qrtColor_BestTextColor
 
 function qrtColor_BrighterColor pRGBTriplet
    p_qrtColor_AssertRGBTriplet pRGBTriplet
-   local tRed, tGreen, tBlue
-   put item 1 of pRGBTriplet into tRed
-   put item 2 of pRGBTriplet into tGreen
-   put item 3 of pRGBTriplet into tBlue
-   local tBrighterColor, tVarI
-   put round(1/(1 - kDeriveFactor)) into tVarI
-   if tRed = 0 and tGreen = 0 and tBlue = 0 then
-      put tVarI & comma & tVarI & comma & tVarI into tBrighterColor
-   else
-      if tRed > 0 and tRed < tVarI then
-         put tVarI into tRed
-      end if
-      if tGreen > 0 and tGreen < tVarI then
-         put tVarI into tGreen
-      end if
-      if tBlue > 0 and tBlue < tVarI then
-         put tVarI into tBlue
-      end if
-      put   min(round(tRed   / kDeriveFactor), 255) & comma & \
-            min(round(tGreen / kDeriveFactor), 255) & comma & \
-            min(round(tBlue  / kDeriveFactor), 255) \
-            into tBrighterColor
-   end if
-   return tBrighterColor
+   return p_qrtColor_BrighterColor(pRGBTriplet)
 end qrtColor_BrighterColor
 
 function qrtColor_DarkerColor pRGBTriplet
    p_qrtColor_AssertRGBTriplet pRGBTriplet
-   local tRed, tGreen, tBlue
-   put item 1 of pRGBTriplet into tRed
-   put item 2 of pRGBTriplet into tGreen
-   put item 3 of pRGBTriplet into tBlue
-   local tDarkerColor
-   put   max(round(tRed   * kDeriveFactor), 0) & comma & \
-         max(round(tGreen * kDeriveFactor), 0) & comma & \
-         max(round(tBlue  * kDeriveFactor), 0) \
-         into tDarkerColor
-   return tDarkerColor
+   return p_qrtColor_DarkerColor(pRGBTriplet)
 end qrtColor_DarkerColor
 
 function qrtColor_DerivedColor pRGBTriplet, pLuminosityFactor
    p_qrtColor_AssertRGBTriplet pRGBTriplet
    p_qrtColor_AssertFactor "Luminosity factor", pLuminosityFactor
-   local tHSLTriplet
-   put p_qrtColor_RGB2HSL(pRGBTriplet) into tHSLTriplet
-   local tLuminosity
-   put item 3 of tHSLTriplet into tLuminosity
-   multiply tLuminosity by pLuminosityFactor
-   put max(min(tLuminosity, 1), 0) into item 3 of tHSLTriplet
-   return p_qrtColor_HSL2RGB(tHSLTriplet)
+   return p_qrtColor_DerivedColor(pRGBTriplet, pLuminosityFactor)
 end qrtColor_DerivedColor
 
 function qrtColor_OffsetColor pRGBTriplet, pHueOffset, pSaturationOffset, pValueOffset
@@ -212,12 +169,7 @@ function qrtColor_OffsetColor pRGBTriplet, pHueOffset, pSaturationOffset, pValue
    p_qrtColor_AssertOffset "Hue offset", pHueOffset
    p_qrtColor_AssertOffset "Saturation offset", pSaturationOffset
    p_qrtColor_AssertOffset "Value offset", pValueOffset
-   local tHSVTriplet
-   put p_qrtColor_RGB2HSV(pRGBTriplet) into tHSVTriplet
-   put max(min(((item 1 of tHSVTriplet) + pHueOffset       ), 1), 0) into item 1 of tHSVTriplet
-   put max(min(((item 2 of tHSVTriplet) + pSaturationOffset), 1), 0) into item 2 of tHSVTriplet
-   put max(min(((item 3 of tHSVTriplet) + pValueOffset     ), 1), 0) into item 3 of tHSVTriplet
-   return p_qrtColor_HSV2RGB(tHSVTriplet)
+   return p_qrtColor_OffsetColor(pRGBTriplet, pHueOffset, pSaturationOffset, pValueOffset)
 end qrtColor_OffsetColor
 
 function qrtColor_WindowsColor pColorName
@@ -225,26 +177,11 @@ function qrtColor_WindowsColor pColorName
 end qrtColor_WindowsColor
 
 function qrtColor_WindowsColors
-   local tColorsA
-   put qrtColor_WindowsColorsA() into tColorsA
-   combine tColorsA using return and colon
-   return tColorsA
+   return p_qrtColor_WindowsColors()
 end qrtColor_WindowsColors
 
 function qrtColor_WindowsColorsA
-   local tColorNames, tColorName, tColorsA
-   put   "ActiveBorder,ActiveTitle,AppWorkspace,Background," & \
-         "ButtonAlternateFace,ButtonDkShadow,ButtonFace,ButtonHilight," & \
-         "ButtonLight,ButtonShadow,ButtonText,GradientActiveTitle," & \
-         "GradientInactiveTitle,GrayText,Hilight,HilightText," & \
-         "HotTrackingColor,InactiveBorder,InactiveTitle,InactiveTitleText," & \
-         "InfoText,InfoWindow,Menu,Menubar," & \
-         "MenuHilight,MenuText,Scrollbar,TitleText," & \
-         "Window,WindowFrame,WindowText" into tColorNames
-   repeat for each item tColorName in tColorNames
-      put p_qrtColor_WindowsColor(tColorName) into tColorsA[tColorName]
-   end repeat
-   return tColorsA
+   return p_qrtColor_WindowsColorsA()
 end qrtColor_WindowsColorsA
 
 --> private commands and functions
@@ -640,6 +577,65 @@ private function p_qrtColor_BestTextColor pRGBTriplet, pAlgorithm
    return sNamedColorsA[tTextColor]
 end p_qrtColor_BestTextColor
 
+private function p_qrtColor_BrighterColor pRGBTriplet
+   local tRed, tGreen, tBlue
+   put item 1 of pRGBTriplet into tRed
+   put item 2 of pRGBTriplet into tGreen
+   put item 3 of pRGBTriplet into tBlue
+   local tBrighterColor, tVarI
+   put round(1/(1 - kDeriveFactor)) into tVarI
+   if tRed = 0 and tGreen = 0 and tBlue = 0 then
+      put tVarI & comma & tVarI & comma & tVarI into tBrighterColor
+   else
+      if tRed > 0 and tRed < tVarI then
+         put tVarI into tRed
+      end if
+      if tGreen > 0 and tGreen < tVarI then
+         put tVarI into tGreen
+      end if
+      if tBlue > 0 and tBlue < tVarI then
+         put tVarI into tBlue
+      end if
+      put   min(round(tRed   / kDeriveFactor), 255) & comma & \
+            min(round(tGreen / kDeriveFactor), 255) & comma & \
+            min(round(tBlue  / kDeriveFactor), 255) \
+            into tBrighterColor
+   end if
+   return tBrighterColor
+end p_qrtColor_BrighterColor
+
+private function p_qrtColor_DarkerColor pRGBTriplet
+   local tRed, tGreen, tBlue
+   put item 1 of pRGBTriplet into tRed
+   put item 2 of pRGBTriplet into tGreen
+   put item 3 of pRGBTriplet into tBlue
+   local tDarkerColor
+   put   max(round(tRed   * kDeriveFactor), 0) & comma & \
+         max(round(tGreen * kDeriveFactor), 0) & comma & \
+         max(round(tBlue  * kDeriveFactor), 0) \
+         into tDarkerColor
+   return tDarkerColor
+end p_qrtColor_DarkerColor
+
+private function p_qrtColor_DerivedColor pRGBTriplet, pLuminosityFactor
+   local tHSLTriplet
+   put p_qrtColor_RGB2HSL(pRGBTriplet) into tHSLTriplet
+   local tLuminosity
+   put item 3 of tHSLTriplet into tLuminosity
+   multiply tLuminosity by pLuminosityFactor
+   put max(min(tLuminosity, 1), 0) into item 3 of tHSLTriplet
+   return p_qrtColor_HSL2RGB(tHSLTriplet)
+end p_qrtColor_DerivedColor
+
+private function p_qrtColor_OffsetColor pRGBTriplet, pHueOffset, pSaturationOffset, pValueOffset
+   local tHSVTriplet
+   put p_qrtColor_RGB2HSV(pRGBTriplet) into tHSVTriplet
+   put max(min(((item 1 of tHSVTriplet) + pHueOffset       ), 1), 0) into item 1 of tHSVTriplet
+   put max(min(((item 2 of tHSVTriplet) + pSaturationOffset), 1), 0) into item 2 of tHSVTriplet
+   put max(min(((item 3 of tHSVTriplet) + pValueOffset     ), 1), 0) into item 3 of tHSVTriplet
+   return p_qrtColor_HSV2RGB(tHSVTriplet)
+end p_qrtColor_OffsetColor
+
 private function p_qrtColor_WindowsColor pColorName
    local tColorRGB
    if the platform is "Win32" and "registryRead" is among the items of the securityPermissions then
@@ -648,6 +644,38 @@ private function p_qrtColor_WindowsColor pColorName
    end if
    return tColorRGB
 end p_qrtColor_WindowsColor
+
+private function p_qrtColor_WindowsColors
+   local tColorsA
+   put p_qrtColor_WindowsColorsA() into tColorsA
+   combine tColorsA using return and colon
+   return tColorsA
+end p_qrtColor_WindowsColors
+
+private function p_qrtColor_WindowsColorsA
+   local tColorNames, tColorName, tColorsA
+   put   "ActiveBorder,ActiveTitle,AppWorkspace,Background," & \
+         "ButtonAlternateFace,ButtonDkShadow,ButtonFace,ButtonHilight," & \
+         "ButtonLight,ButtonShadow,ButtonText,GradientActiveTitle," & \
+         "GradientInactiveTitle,GrayText,Hilight,HilightText," & \
+         "HotTrackingColor,InactiveBorder,InactiveTitle,InactiveTitleText," & \
+         "InfoText,InfoWindow,Menu,Menubar," & \
+         "MenuHilight,MenuText,Scrollbar,TitleText," & \
+         "Window,WindowFrame,WindowText" into tColorNames
+   repeat for each item tColorName in tColorNames
+      put p_qrtColor_WindowsColor(tColorName) into tColorsA[tColorName]
+   end repeat
+   return tColorsA
+end p_qrtColor_WindowsColorsA
+
+private command p_qrtColor_ResetNamedColors
+   put empty into sNamedColorsA
+   p_qrtColor_LoadLiveCodeColors
+   p_qrtColor_LoadCSS3Colors
+   if the platform is "Win32" then
+      p_qrtColor_LoadWindowsColors
+   end if
+end p_qrtColor_ResetNamedColors
 
 private command p_qrtColor_LoadLiveCodeColors
    put "239,247,255" into sNamedColorsA["AliceBlue"]
