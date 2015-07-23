@@ -29,6 +29,7 @@ ACKNOWLEDGEMENTS:
 - CSS Color Module Level 3 information from: http://www.w3.org/TR/css3-color/
 - Perceived brightness algorithm adapted from: http://www.nbdtech.com/Blog/archive/2008/04/27/Calculating-the-Perceived-Brightness-of-a-Color.aspx
 - RGB average text color algorithm adapted from: revDataGridLibrary > Behaviors > Data Grid script
+- Some Grayscale algorithms (decomposeValue, desaturate, luminance) adapted from: http://gimp-savvy.com/BOOK/index.html?node54.html
 */
 
 
@@ -41,8 +42,9 @@ constant kLibDebugMode = "false"
 -- as used in java.awt.Color#Brighter and java.awt.Color#Darker
 constant kDeriveFactor = 0.7
 
--- comma-separated list of supported 'best text color' algorithms
+-- comma-separated list of supported algorithms
 constant kBestTextAlgorithms = "perceivedBrightness,rgbAverage"
+constant kGrayscaleAlgorithms = "decomposeValue,desaturate,hspBrightness,luminance,perceivedBrightness,rgbAverage"
 
 --> script local variables
 
@@ -142,6 +144,12 @@ function qrtColor_RGBToCMYK pRGBTriplet
    return p_qrtColor_CMY2CMYK(p_qrtColor_RGB2CMY(pRGBTriplet))
 end qrtColor_RGBToCMYK
 
+function qrtColor_ColorToGray pRGBTriplet, pAlgorithm
+   p_qrtColor_AssertRGBTriplet pRGBTriplet
+   p_qrtColor_AssertGrayscaleAlgorithm pAlgorithm
+   return p_qrtColor_RGBColorToGray(pRGBTriplet, pAlgorithm)
+end qrtColor_ColorToGray
+
 function qrtColor_BestTextColor pRGBTriplet, pAlgorithm
    p_qrtColor_AssertRGBTriplet pRGBTriplet
    p_qrtColor_AssertBestTextAlgorithm pAlgorithm
@@ -191,6 +199,12 @@ private command p_qrtColor_AssertBestTextAlgorithm pAlgorithm
       throw "BestTextAlgorithm: must be one of '" & kBestTextAlgorithms @ "'"
    end if
 end p_qrtColor_AssertBestTextAlgorithm
+
+private command p_qrtColor_AssertGrayscaleAlgorithm pAlgorithm
+   if pAlgorithm is not among the items of kGrayscaleAlgorithms then
+      throw "GrayscaleAlgorithm: must be one of '" & kGrayscaleAlgorithms & "'"
+   end if
+end p_qrtColor_AssertGrayscaleAlgorithm
 
 private command p_qrtColor_AssertFactor pFactorName, @rFactorValue
    replace space with empty in rFactorValue
@@ -548,6 +562,36 @@ private function p_qrtColor_CMYK2CMY pCMYKQuad
    put (tYellow  * (1 - tBlack) + tBlack) into tYellow
    return tCyan & comma & tMagenta & comma & tYellow
 end p_qrtColor_CMYK2CMY
+
+private function p_qrtColor_ColorToGray pRGBTriplet, pAlgorithm
+   local tRed, tGreen, tBlue
+   put item 1 of pRGBTriplet into tRed
+   put item 2 of pRGBTriplet into tGreen
+   put item 3 of pRGBTriplet into tBlue
+   local tGrayValue
+   switch pAlgorithm
+      case "decomposeValue"
+         put max(tRed, tGreen, tBlue) into tGrayValue
+         break
+      case "desaturate"
+         put (max(tRed, tGreen, tBlue) + min(tRed,tGreen,tBlue)) / 2 into tGrayValue
+         break
+      case "hspBrightness"
+         put sqrt(tRed ^ 2 * 0.299 + tGreen ^ 2 * 0.587 + tBlue ^ 2 * 0.114) into tGrayValue
+         break
+      case "luminance"
+         put 0.3 * tRed + 0.59 * tGreen + 0.11 * tBlue into tGrayValue
+         break
+      case "perceivedBrightness"
+         put sqrt(tRed ^ 2 * 0.241 + tGreen ^ 2 * 0.691 + tBlue ^ 2 * 0.068) into tGrayValue
+         break
+      case "rgbAverage"
+         put average(tRed, tGreen, tBlue) into tGrayValue
+         break
+   end switch
+   put trunc(tGrayValue) into tGrayValue
+   return tGrayValue & comma & tGrayValue & comma & tGrayValue
+end p_qrtColor_ColorToGray
 
 private function p_qrtColor_BestTextColor pRGBTriplet, pAlgorithm
    local tRed, tGreen, tBlue
