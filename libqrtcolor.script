@@ -34,7 +34,7 @@ ACKNOWLEDGEMENTS:
 
 --> constants
 
-constant kLibVersion = "1.0.0"
+constant kLibVersion = "1.0.1"
 constant kLibDebugMode = "false"
 
 -- arbitrary factor for deriving brighter and darker colors
