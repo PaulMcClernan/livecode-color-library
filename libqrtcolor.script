@@ -26,16 +26,17 @@ licenses@quartam.com
 ACKNOWLEDGEMENTS:
 - Brighter/Darker algorithms adapted from: java.awt.Color
 - Color conversion algorithms adapted from: http://www.easyrgb.com/index.php?X=MATH
-- CSS Color Module Level 3 information from: http://www.w3.org/TR/css3-color/
+- HSP brightness algorithm adapted from: http://alienryderflex.com/hsp.html
 - Perceived brightness algorithm adapted from: http://www.nbdtech.com/Blog/archive/2008/04/27/Calculating-the-Perceived-Brightness-of-a-Color.aspx
 - RGB average text color algorithm adapted from: revDataGridLibrary > Behaviors > Data Grid script
 - Some Grayscale algorithms (decomposeValue, desaturate, luminance) adapted from: http://gimp-savvy.com/BOOK/index.html?node54.html
+- W3C CSS Color Module Level 3 information from: http://www.w3.org/TR/css3-color/
 */
 
 
 --> constants
 
-constant kLibVersion = "1.0.1"
+constant kLibVersion = "1.1.0-dp"
 constant kLibDebugMode = "false"
 
 -- arbitrary factor for deriving brighter and darker colors
@@ -144,6 +145,36 @@ function qrtColor_RGBToCMYK pRGBTriplet
    p_qrtColor_AssertRGBTriplet pRGBTriplet
    return p_qrtColor_CMY2CMYK(p_qrtColor_RGB2CMY(pRGBTriplet))
 end qrtColor_RGBToCMYK
+
+function qrtColor_XYZToRGB pXYZTriplet
+   p_qrtColor_AssertXYZTriplet pXYZTriplet
+   return p_qrtColor_XYZ2RGB(pXYZTriplet)
+end qrtColor_XYZToRGB
+
+function qrtColor_RGBToXYZ pRGBTriplet
+   p_qrtColor_AssertRGBTriplet pRGBTriplet
+   return p_qrtColor_RGB2XYZ(pRGBTriplet)
+end qrtColor_RGBToXYZ
+
+function qrtColor_XYZToYXY pXYZTriplet
+   p_qrtColor_AssertXYZTriplet pXYZTriplet
+   return p_qrtColor_XYZ2YXY(pXYZTriplet)
+end qrtColor_XYZToYXY
+
+function qrtColor_YXYToXYZ pYXYTriplet
+   p_qrtColor_AssertYXYTriplet pYXYTriplet
+   return p_qrtColor_YXY2XYZ(pYXYTriplet)
+end qrtColor_YXYToXYZ
+
+function qrtColor_YXYToRGB pYXYTriplet
+   p_qrtColor_AssertYXYTriplet pYXYTriplet
+   return p_qrtColor_XYZ2RGB(p_qrtColor_YXY2XYZ(pYXYTriplet))
+end qrtColor_YXYToRGB
+
+function qrtColor_RGBToYXY pRGBTriplet
+   p_qrtColor_AssertRGBTriplet pRGBTriplet
+   return p_qrtColor_XYZ2YXY(p_qrtColor_RGB2XYZ(pRGBTriplet))
+end qrtColor_RGBToYXY
 
 function qrtColor_EffectiveColor pColor
    return p_qrtColor_EffectiveColor(pColor)
@@ -319,6 +350,50 @@ private command p_qrtColor_AssertTuple pTuple, pTypeName, pItemCount, pDataType,
       throw tError
    end if
 end p_qrtColor_AssertTuple
+
+private command p_qrtColor_AssertXYZTriplet pXYZTriplet
+   local tValidFlag
+   if the number of items in pXYZTriplet is not 3 then
+      put false into tValidFlag
+   else
+      local tX, tY, tZ
+      put item 1 of pXYZTriplet into tX
+      put item 2 of pXYZTriplet into tY
+      put item 3 of pXYZTriplet into tZ
+      if tX is not a number or tX < 0 or tX > 95.047 then
+         put false into tValidFlag
+      else if tY is not a number or tY < 0 or tY > 100 then
+         put false into tValidFlag
+      else if tZ is not a number or tZ < 0 or tZ > 108.883 then
+         put false into tValidFlag
+      end if
+   end if
+   if tValidFlag is false then
+      throw "XYZ color must be of the form 'X,Y,Z' where X is a number in the range [0-95.047], Y is a number in the range [0-100] and Z is a number in the range [0-108.883]"
+   end if
+end p_qrtColor_AssertXYZTriplet
+
+private command p_qrtColor_AssertYXYTriplet pYXYTriplet
+   local tValidFlag
+   if the number of items in pYXYTriplet is not 3 then
+      put false into tValidFlag
+   else
+      local tY1, tX, tY2
+      put item 1 of pYXYTriplet into tY1
+      put item 2 of pYXYTriplet into tX
+      put item 3 of pYXYTriplet into tY2
+      if tY1 is not a number or tY1 < 0 or tY1 > 100 then
+         put false into tValidFlag
+      else if tX is not a number or tX < 0 or tX > 1 then
+         put false into tValidFlag
+      else if tY2 is not a number or tY2 < 0 or tY2 > 1 then
+         put false into tValidFlag
+      end if
+   end if
+   if tValidFlag is false then
+      throw "Yxy color must be of the form 'Y,x,y' where Y is a number in the range [0-100], x is a number in the range [0-1] and y is a number in the range [0-1]"
+   end if
+end p_qrtColor_AssertYXYTriplet
 
 private function p_qrtColor_IsHex pHex
    repeat for each char tChar in pHex
@@ -567,6 +642,92 @@ private function p_qrtColor_CMYK2CMY pCMYKQuad
    put (tYellow  * (1 - tBlack) + tBlack) into tYellow
    return tCyan & comma & tMagenta & comma & tYellow
 end p_qrtColor_CMYK2CMY
+
+private function p_qrtColor_XYZ2RGB pXYZTriplet
+   local tX, tY, tZ
+   put item 1 of pXYZTriplet into tX
+   put item 2 of pXYZTriplet into tY
+   put item 3 of pXYZTriplet into tZ
+   local tVarX, tVarY, tVarZ
+   put tX / 100 into tVarX
+   put tY / 100 into tVarY
+   put tZ / 100 into tVarZ
+   local tVarR, tVarG, tVarB
+   put tVarX *  3.2406 + tVarY * -1.5372 + tVarZ * -0.4986 into tVarR
+   put tVarX * -0.9689 + tVarY *  1.8758 + tVarZ *  0.0415 into tVarG
+   put tVarX *  0.0557 + tVarY * -0.2040 + tVarZ *  1.0570 into tVarB
+   put p_qrtColor_XYZ2RGB_Normalized(tVarR) into tVarR
+   put p_qrtColor_XYZ2RGB_Normalized(tVarG) into tVarG
+   put p_qrtColor_XYZ2RGB_Normalized(tVarB) into tVarB
+   local tRed, tGreen, tBlue
+   put trunc(tVarR * 255) into tRed
+   put trunc(tVarG * 255) into tGreen
+   put trunc(tVarB * 255) into tBlue
+   return tRed & comma & tGreen & comma & tBlue
+end p_qrtColor_XYZ2RGB
+
+private function p_qrtColor_XYZ2RGB_Normalized pVar
+   local tVarN
+   if pVar > 0.0031308 then
+      put 1.055 * (pVar ^ ( 1 / 2.4 )) - 0.055 into tVarN
+   else
+      put 12.92 * pVar into tVarN
+   end if
+   return tVarN
+end p_qrtColor_XYZ2RGB_Normalized
+
+private function p_qrtColor_RGB2XYZ pRGBTriplet
+   local tRed, tGreen, tBlue
+   put item 1 of pRGBTriplet into tRed
+   put item 2 of pRGBTriplet into tGreen
+   put item 3 of pRGBTriplet into tBlue
+   local tVarR, tVarG, tVarB
+   put tRed   / 255 into tVarR
+   put tGreen / 255 into tVarG
+   put tBlue  / 255 into tVarB
+   put p_qrtColor_RGB2XYZ_Normalized(tVarR) * 100 into tVarR
+   put p_qrtColor_RGB2XYZ_Normalized(tVarG) * 100 into tVarG
+   put p_qrtColor_RGB2XYZ_Normalized(tVarB) * 100 into tVarB
+   local tX, tY, tZ
+   put tVarR * 0.4124 + tVarG * 0.3576 + tVarB * 0.1805 into tX
+   put tVarR * 0.2126 + tVarG * 0.7152 + tVarB * 0.0722 into tY
+   put tVarR * 0.0193 + tVarG * 0.1192 + tVarB * 0.9505 into tZ
+   return tX & comma & tY & comma & tZ
+end p_qrtColor_RGB2XYZ
+
+private function p_qrtColor_RGB2XYZ_Normalized pVar
+   local tVarN
+   if pVar > 0.04045 then
+      put ((pVar + 0.055) / 1.055) ^ 2.4 into tVarN
+   else
+      put pVar / 12.92 into tVarN
+   end if
+   return tVarN
+end p_qrtColor_RGB2XYZ_Normalized
+
+private function p_qrtColor_YXY2XYZ pYXYTriplet
+   local tInY1, tInX, tInY2
+   put item 1 of pYXYTriplet into tInY1
+   put item 2 of pYXYTriplet into tInX
+   put item 3 of pYXYTriplet into tInY2
+   local tOutX, tOutY, tOutZ
+   put tInX * (tInY1 / tInY2) into tOutX
+   put tInY1 into tOutY
+   put (1 - tInX - tInY2) * (tInY1 / tInY2) into tOutZ
+   return tOutX & comma & tOutY & comma & tOutZ
+end p_qrtColor_YXY2XYZ
+
+private function p_qrtColor_XYZ2YXY pXYZTriplet
+   local tInX, tInY, tInZ
+   put item 1 of pXYZTriplet into tInX
+   put item 2 of pXYZTriplet into tInY
+   put item 3 of pXYZTriplet into tInZ
+   local tOutY1, tOutX, tOutY2
+   put tInY into tOutY1
+   put tInX / (tInX + tInY + tInZ) into tOutX
+   put tInY / (tInX + tInY + tInZ) into tOutY2
+   return tOutY1 & comma & tOutX & comma & tOutY2
+end p_qrtColor_XYZ2YXY
 
 private function p_qrtColor_ColorToGray pRGBTriplet, pAlgorithm
    local tRed, tGreen, tBlue
