@@ -47,6 +47,9 @@ constant kDeriveFactor = 0.7
 constant kBestTextAlgorithms = "perceivedBrightness,rgbAverage"
 constant kGrayscaleAlgorithms = "decomposeValue,desaturate,hspBrightness,luminance,perceivedBrightness,rgbAverage"
 
+-- comma-separated list of supported light types (as used in XYZ/CIELab conversion)
+constant kLightTypes = "A/2,A/10,C/2,C/10,D50/2,D50/10,D55/2,D55/10,D65/2,D65/10,D75/2,D75/10,F2/2,F2/10,F7/2,F7/10,F11/2,F11/10"
+
 --> script local variables
 
 local sNamedColorsA
@@ -195,6 +198,30 @@ function qrtColor_HunterLabToRGB pHLabTriplet
    return p_qrtColor_XYZ2RGB(p_qrtColor_HLab2XYZ(pHLabTriplet))
 end qrtColor_HunterLabToRGB
 
+function qrtColor_XYZToCIELab pXYZTriplet, pLightType
+   p_qrtColor_AssertXYZTriplet pXYZTriplet
+   p_qrtColor_AssertLightType pLightType
+   return p_qrtColor_XYZ2CIELab(pXYZTriplet, pLightType)
+end qrtColor_XYZToCIELab
+
+function qrtColor_CIELabToXYZ pCIELabTriplet, pLightType
+   p_qrtColor_AssertCIELabTriplet pCIELabTriplet
+   p_qrtColor_AssertLightType pLightType
+   return p_qrtColor_CIELab2XYZ(pCIELabTriplet, pLightType)
+end qrtColor_CIELabToXYZ
+
+function qrtColor_RGBToCIELab pRGBTriplet, pLightType
+   p_qrtColor_AssertRGBTriplet pRGBTriplet
+   p_qrtColor_AssertLightType pLightType
+   return p_qrtColor_XYZ2CIELab(p_qrtColor_RGB2XYZ(pRGBTriplet), pLightType)
+end qrtColor_RGBToCIELab
+
+function qrtColor_CIELabToRGB pCIELabTriplet, pLightType
+   p_qrtColor_AssertCIELabTriplet pCIELabTriplet
+   p_qrtColor_AssertLightType pLightType
+   return p_qrtColor_XYZ2RGB(p_qrtColor_CIELab2XYZ(pCIELabTriplet, pLightType))
+end qrtColor_CIELabToRGB
+
 function qrtColor_ColorToGray pRGBTriplet, pAlgorithm
    p_qrtColor_AssertRGBTriplet pRGBTriplet
    p_qrtColor_AssertGrayscaleAlgorithm pAlgorithm
@@ -256,6 +283,12 @@ private command p_qrtColor_AssertGrayscaleAlgorithm pAlgorithm
       throw "GrayscaleAlgorithm: must be one of '" & kGrayscaleAlgorithms & "'"
    end if
 end p_qrtColor_AssertGrayscaleAlgorithm
+
+private command p_qrtColor_AssertLightType pLightType
+   if pLightType is not among the items of kLightTypes then
+      throw "LightType: must be empty or one of '" & kLightTypes & "'"
+   end if
+end p_qrtColor_AssertLightType
 
 private command p_qrtColor_AssertFactor pFactorName, @rFactorValue
    replace space with empty in rFactorValue
@@ -410,7 +443,15 @@ private command p_qrtColor_AssertYXYTriplet pYXYTriplet
    end if
 end p_qrtColor_AssertYXYTriplet
 
-private command p_qrtColor_AssertHLabTriplet pLabTriplet
+private command p_qrtColor_AssertHLabTriplet pHLabTriplet
+   p_qrtColor_AssertLabTriplet pHLabTriplet, "Hunter-Lab"
+end p_qrtColor_AssertHLabTriplet
+
+private command p_qrtColor_AssertCIELabTriplet pCIELabTriplet
+   p_qrtColor_AssertLabTriplet pCIELabTriplet, "CIE-L*ab"
+end p_qrtColor_AssertCIELabTriplet
+
+private function p_qrtColor_AssertLabTriplet pLabTriplet, pLabType
    local tValidFlag
    if the number of items in pLabTriplet is not 3 then
       put false into tValidFlag
@@ -428,9 +469,9 @@ private command p_qrtColor_AssertHLabTriplet pLabTriplet
       end if
    end if
    if tValidFlag is false then
-      throw "Hunter-Lab color must be of the form 'L,a,b' where L is a number in the range [0-100] and a and b are numbers greater than 0"
+      throw pLabType && "color must be of the form 'L,a,b' where L is a number in the range [0-100] and a and b are numbers greater than 0"
    end if
-end p_qrtColor_AssertHLabTriplet
+end p_qrtColor_AssertLabTriplet
 
 private function p_qrtColor_IsHex pHex
    repeat for each char tChar in pHex
@@ -793,6 +834,171 @@ private function p_qrtColor_HLab2XYZ pHLabTriplet
    put -(tVarZ - tY) / 0.847 into tZ
    return tX & comma & tY & comma & tZ
 end p_qrtColor_HLab2XYZ
+
+private function p_qrtColor_XYZ2CIELab pXYZTriplet, pLightType
+   local tX, tY, tZ
+   put item 1 of pXYZTriplet into tX
+   put item 2 of pXYZTriplet into tY
+   put item 3 of pXYZTriplet into tZ
+   local tRefXYZ, tRefX, tRefY, tRefZ
+   put p_qrtColor_ReferenceXYZ(pLightType) into tRefXYZ
+   put item 1 of tRefXYZ into tRefX
+   put item 2 of tRefXYZ into tRefY
+   put item 3 of tRefXYZ into tRefZ
+   local tVarX, tVarY, tVarZ
+   put tX / tRefX into tVarX
+   put tY / tRefY into tVarY
+   put tZ / tRefZ into tVarZ
+   put p_qrtColor_XYZ2CIE_Normalized(tVarX) into tVarX
+   put p_qrtColor_XYZ2CIE_Normalized(tVarY) into tVarY
+   put p_qrtColor_XYZ2CIE_Normalized(tVarZ) into tVarZ
+   local tCIEL, tCIEa, tCIEb
+   put (116 * tVarY) - 16 into tCIEL
+   put 500 * (tVarX - tVarY) into tCIEa
+   put 200 * (tVarY - tVarZ) into tCIEb
+   return tCIEL & comma & tCIEa & comma & tCIEb
+end p_qrtColor_XYZ2CIELab
+
+private function p_qrtColor_CIELab2XYZ pCIELabTriplet, pLightType
+   local tCIEL, tCIEa, tCIEb
+   put item 1 of pCIELabTriplet into tCIEL
+   put item 2 of pCIELabTriplet into tCIEa
+   put item 3 of pCIELabTriplet into tCIEb
+   local tVarX, tVarY, tVarZ
+   put (tCIEL + 16) / 116 into tVarY
+   put tCIEa / 500 + tVarY into tVarX
+   put tVarY - tCIEb / 200 into tVarZ
+   put p_qrtColor_CIE2XYZ_Normalized(tVarX) into tVarX
+   put p_qrtColor_CIE2XYZ_Normalized(tVarY) into tVarY
+   put p_qrtColor_CIE2XYZ_Normalized(tVarZ) into tVarZ
+   local tRefXYZ, tRefX, tRefY, tRefZ
+   put p_qrtColor_ReferenceXYZ(pLightType) into tRefXYZ
+   put item 1 of tRefXYZ into tRefX
+   put item 2 of tRefXYZ into tRefY
+   put item 3 of tRefXYZ into tRefZ
+   local tX, tY, tZ
+   put tRefX * tVarX into tX
+   put tRefY * tVarY into tY
+   put tRefZ * tVarZ into tZ
+   return tX & comma & tY & comma & tZ
+end p_qrtColor_CIELab2XYZ
+
+private function p_qrtColor_XYZ2CIE_Normalized pVar
+   local tVarN
+   if pVar > 0.008856 then
+      put pVar ^ (1 / 3) into tVarN
+   else
+      put (7.787 * pVar) + (16 / 116) into tVarN
+   end if
+   return tVarN
+end p_qrtColor_XYZ2CIE_Normalized
+
+private function p_qrtColor_CIE2XYZ_Normalized pVar
+   local tVarN
+   if (pVar ^ 3) > 0.008856 then
+      put pVar ^ 3 into tVarN
+   else
+      put (pVar - 16 / 116) / 7.787 into tVarN
+   end if
+   return tVarN
+end p_qrtColor_CIE2XYZ_Normalized
+
+private function p_qrtColor_ReferenceXYZ pLightType
+   local tRefX, tRefY, tRefZ
+   switch pLightType
+      case "A/2"
+         put 109.850 into tRefX
+         put 100 into tRefY
+         put 35.585 into tRefZ
+         break
+      case "A/10"
+         put 111.144 into tRefX
+         put 100 into tRefY
+         put 35.200 into tRefZ
+         break
+      case "C/2"
+         put 98.074 into tRefX
+         put 100 into tRefY
+         put 118.232 into tRefZ
+         break
+      case "C/10"
+         put 97.285 into tRefX
+         put 100 into tRefY
+         put 116.145 into tRefZ
+         break
+      case "D50/2"
+         put 96.422 into tRefX
+         put 100 into tRefY
+         put 82.521 into tRefZ
+         break
+      case "D50/10"
+         put 96.720 into tRefX
+         put 100 into tRefY
+         put 81.427 into tRefZ
+         break
+      case "D55/2"
+         put 95.682 into tRefX
+         put 100 into tRefY
+         put 92.149 into tRefZ
+         break
+      case "D55/10"
+         put 95.799 into tRefX
+         put 100 into tRefY
+         put 90.926 into tRefZ
+         break
+      case "D65/2"
+         put 95.047 into tRefX
+         put 100 into tRefY
+         put 108.883 into tRefZ
+         break
+      case "D65/10"
+         put 94.811 into tRefX
+         put 100 into tRefY
+         put 107.304 into tRefZ
+         break
+      case "D75/2"
+         put 94.972 into tRefX
+         put 100 into tRefY
+         put 122.638 into tRefZ
+         break
+      case "D75/10"
+         put 94.461 into tRefX
+         put 100 into tRefY
+         put 120.641 into tRefZ
+         break
+      case "F2/2"
+         put 99.187 into tRefX
+         put 100 into tRefY
+         put 67.395 into tRefZ
+         break
+      case "F2/10"
+         put 103.280 into tRefX
+         put 100 into tRefY
+         put 69.026 into tRefZ
+         break
+      case "F7/2"
+         put 95.044 into tRefX
+         put 100 into tRefY
+         put 108.755 into tRefZ
+         break
+      case "F7/10"
+         put 95.792 into tRefX
+         put 100 into tRefY
+         put 107.687 into tRefZ
+         break
+      case "F11/2"
+         put 100.966 into tRefX
+         put 100 into tRefY
+         put 64.370 into tRefZ
+         break
+      case "F11/10"
+         put 103.866 into tRefX
+         put 100 into tRefY
+         put 65.672 into tRefZ
+         break
+   end switch
+   return tRefX & comma & tRefY & comma & tRefZ
+end p_qrtColor_ReferenceXYZ
 
 private function p_qrtColor_ColorToGray pRGBTriplet, pAlgorithm
    local tRed, tGreen, tBlue
