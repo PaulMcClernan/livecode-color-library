@@ -36,7 +36,7 @@ ACKNOWLEDGEMENTS:
 
 --> constants
 
-constant kLibVersion = "1.1.0-dp"
+constant kLibVersion = "2.0.0-dp"
 constant kLibDebugMode = "false"
 
 -- arbitrary factor for deriving brighter and darker colors
@@ -174,6 +174,26 @@ function qrtColor_RGBToYXY pRGBTriplet
    p_qrtColor_AssertRGBTriplet pRGBTriplet
    return p_qrtColor_XYZ2YXY(p_qrtColor_RGB2XYZ(pRGBTriplet))
 end qrtColor_RGBToYXY
+
+function qrtColor_XYZToHunterLab pXYZTriplet
+   p_qrtColor_AssertXYZTriplet pXYZTriplet
+   return p_qrtColor_XYZ2HLab(pXYZTriplet)
+end qrtColor_XYZToHunterLab
+
+function qrtColor_HunterLabToXYZ pHLabTriplet
+   p_qrtColor_AssertHLabTriplet pHLabTriplet
+   return p_qrtColor_HLab2XYZ(pHLabTriplet)
+end qrtColor_HunterLabToXYZ
+
+function qrtColor_RGBToHunterLab pRGBTriplet
+   p_qrtColor_AssertRGBTriplet pRGBTriplet
+   return p_qrtColor_XYZ2HLab(p_qrtColor_RGB2XYZ(pRGBTriplet))
+end qrtColor_RGBToHunterLab
+
+function qrtColor_HunterLabToRGB pHLabTriplet
+   p_qrtColor_AssertHLabTriplet pHLabTriplet
+   return p_qrtColor_XYZ2RGB(p_qrtColor_HLab2XYZ(pHLabTriplet))
+end qrtColor_HunterLabToRGB
 
 function qrtColor_ColorToGray pRGBTriplet, pAlgorithm
    p_qrtColor_AssertRGBTriplet pRGBTriplet
@@ -389,6 +409,28 @@ private command p_qrtColor_AssertYXYTriplet pYXYTriplet
       throw "Yxy color must be of the form 'Y,x,y' where Y is a number in the range [0-100], x is a number in the range [0-1] and y is a number in the range [0-1]"
    end if
 end p_qrtColor_AssertYXYTriplet
+
+private command p_qrtColor_AssertHLabTriplet pLabTriplet
+   local tValidFlag
+   if the number of items in pLabTriplet is not 3 then
+      put false into tValidFlag
+   else
+      local tLL, tLa, tLb
+      put item 1 of pLabTriplet into tLL
+      put item 2 of pLabTriplet into tLa
+      put item 3 of pLabTriplet into tLb
+      if tLL is not a number or tLL < 0 or tLL > 100 then
+         put false into tValidFlag
+      else if tLa is not a number or tLa < 0 then
+         put false into tValidFlag
+      else if tLb is not a number or tLb < 0 then
+         put false into tValidFlag
+      end if
+   end if
+   if tValidFlag is false then
+      throw "Hunter-Lab color must be of the form 'L,a,b' where L is a number in the range [0-100] and a and b are numbers greater than 0"
+   end if
+end p_qrtColor_AssertHLabTriplet
 
 private function p_qrtColor_IsHex pHex
    repeat for each char tChar in pHex
@@ -723,6 +765,34 @@ private function p_qrtColor_XYZ2YXY pXYZTriplet
    put tInY / (tInX + tInY + tInZ) into tOutY2
    return tOutY1 & comma & tOutX & comma & tOutY2
 end p_qrtColor_XYZ2YXY
+
+private function p_qrtColor_XYZ2HLab pXYZTriplet
+   local tX, tY, tZ
+   put item 1 of pXYZTriplet into tX
+   put item 2 of pXYZTriplet into tY
+   put item 3 of pXYZTriplet into tZ
+   local tHL, tHa, tHb
+   put 10 * sqrt(tY) into tHL
+   put 17.5 * (((1.02 * tX) - tY) / sqrt(tY)) into tHa
+   put 7 * ((tY - (0.847 * tZ)) / sqrt(tY)) into tHb
+   return tHL & comma & tHa & comma & tHb
+end p_qrtColor_XYZ2HLab
+
+private function p_qrtColor_HLab2XYZ pHLabTriplet
+   local tHL, tHa, tHb
+   put item 1 of pHLabTriplet into tHL
+   put item 2 of pHLabTriplet into tHa
+   put item 3 of pHLabTriplet into tHb
+   local tVarX, tVarY, tVarZ
+   put tHL / 10 into tVarY
+   put tHa / 17.5 * tHL / 10 into tVarX
+   put tHb / 7 * tHL / 10 into tVarZ
+   local tX, tY, tZ
+   put tVarY ^ 2 into tY
+   put (tVarX + tY) / 1.02 into tX
+   put -(tVarZ - tY) / 0.847 into tZ
+   return tX & comma & tY & comma & tZ
+end p_qrtColor_HLab2XYZ
 
 private function p_qrtColor_ColorToGray pRGBTriplet, pAlgorithm
    local tRed, tGreen, tBlue
