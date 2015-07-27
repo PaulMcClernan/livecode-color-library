@@ -222,6 +222,30 @@ function qrtColor_CIELabToRGB pCIELabTriplet, pLightType
    return p_qrtColor_XYZ2RGB(p_qrtColor_CIELab2XYZ(pCIELabTriplet, pLightType))
 end qrtColor_CIELabToRGB
 
+function qrtColor_XYZToCIELuv pXYZTriplet, pLightType
+   p_qrtColor_AssertXYZTriplet pXYZTriplet
+   p_qrtColor_AssertLightType pLightType
+   return p_qrtColor_XYZ2CIELuv(pXYZTriplet, pLightType)
+end qrtColor_XYZToCIELuv
+
+function qrtColor_CIELuvToXYZ pCIELuvTriplet, pLightType
+   p_qrtColor_AssertCIELuvTriplet pCIELuvTriplet
+   p_qrtColor_AssertLightType pLightType
+   return p_qrtColor_CIELuv2XYZ(pCIELuvTriplet, pLightType)
+end qrtColor_CIELuvToXYZ
+
+function qrtColor_RGBToCIELuv pRGBTriplet, pLightType
+   p_qrtColor_AssertRGBTriplet pRGBTriplet
+   p_qrtColor_AssertLightType pLightType
+   return p_qrtColor_XYZ2CIELuv(p_qrtColor_RGB2XYZ(pRGBTriplet), pLightType)
+end qrtColor_RGBToCIELuv
+
+function qrtColor_CIELuvToRGB pCIELuvTriplet, pLightType
+   p_qrtColor_AssertCIELuvTriplet pCIELuvTriplet
+   p_qrtColor_AssertLightType pLightType
+   return p_qrtColor_XYZ2RGB(p_qrtColor_CIELuv2XYZ(pCIELuvTriplet, pLightType))
+end qrtColor_CIELuvToRGB
+
 function qrtColor_ColorToGray pRGBTriplet, pAlgorithm
    p_qrtColor_AssertRGBTriplet pRGBTriplet
    p_qrtColor_AssertGrayscaleAlgorithm pAlgorithm
@@ -444,22 +468,32 @@ private command p_qrtColor_AssertYXYTriplet pYXYTriplet
 end p_qrtColor_AssertYXYTriplet
 
 private command p_qrtColor_AssertHLabTriplet pHLabTriplet
-   p_qrtColor_AssertLabTriplet pHLabTriplet, "Hunter-Lab"
+   if not p_qrtColor_IsLabLuvTriplet(pHLabTriplet) then
+      throw "Hunter-Lab color must be of the form 'L,a,b' where L is a number in the range [0-100] and a and b are numbers greater than 0"
+   end if
 end p_qrtColor_AssertHLabTriplet
 
 private command p_qrtColor_AssertCIELabTriplet pCIELabTriplet
-   p_qrtColor_AssertLabTriplet pCIELabTriplet, "CIE-L*ab"
+   if not p_qrtColor_IsLabLuvTriplet(pCIELabTriplet) then
+      throw "CIE-L*ab color must be of the form 'L,a,b' where L is a number in the range [0-100] and a and b are numbers greater than 0"
+   end if
 end p_qrtColor_AssertCIELabTriplet
 
-private function p_qrtColor_AssertLabTriplet pLabTriplet, pLabType
+private command p_qrtColor_AssertCIELuvTriplet pCIELuvTriplet
+   if not p_qrtColor_IsLabLuvTriplet(pCIELuvTriplet) then
+      throw "CIE-L*uv color must be of the form 'L,u,v' where L is a number in the range [0-100] and u and v are numbers greater than 0"
+   end if
+end p_qrtColor_AssertCIELuvTriplet
+
+private function p_qrtColor_IsLabLuvTriplet pLabLuvTriplet
    local tValidFlag
-   if the number of items in pLabTriplet is not 3 then
+   if the number of items in pLabLuvTriplet is not 3 then
       put false into tValidFlag
    else
       local tLL, tLa, tLb
-      put item 1 of pLabTriplet into tLL
-      put item 2 of pLabTriplet into tLa
-      put item 3 of pLabTriplet into tLb
+      put item 1 of pLabLuvTriplet into tLL
+      put item 2 of pLabLuvTriplet into tLa
+      put item 3 of pLabLuvTriplet into tLb
       if tLL is not a number or tLL < 0 or tLL > 100 then
          put false into tValidFlag
       else if tLa is not a number or tLa < 0 then
@@ -468,10 +502,8 @@ private function p_qrtColor_AssertLabTriplet pLabTriplet, pLabType
          put false into tValidFlag
       end if
    end if
-   if tValidFlag is false then
-      throw pLabType && "color must be of the form 'L,a,b' where L is a number in the range [0-100] and a and b are numbers greater than 0"
-   end if
-end p_qrtColor_AssertLabTriplet
+   return tValidFlag
+end p_qrtColor_IsLabLuvTriplet
 
 private function p_qrtColor_IsHex pHex
    repeat for each char tChar in pHex
@@ -883,6 +915,47 @@ private function p_qrtColor_CIELab2XYZ pCIELabTriplet, pLightType
    return tX & comma & tY & comma & tZ
 end p_qrtColor_CIELab2XYZ
 
+private function p_qrtColor_XYZ2CIELuv pXYZTriplet, pLightType
+   local tX, tY, tZ
+   put item 1 of pXYZTriplet into tX
+   put item 2 of pXYZTriplet into tY
+   put item 3 of pXYZTriplet into tZ
+   local tVarU, tVarV, tVarY
+   put (4 * tX) / (tX + (15 * tY) + (3 * tZ)) into tVarU
+   put (9 * tY) / (tX + (15 * tY) + (3 * tZ)) into tVarV
+   put p_qrtColor_XYZ2CIE_Normalized(tY / 100) into tVarY
+   local tRefUV, tRefU, tRefV
+   put p_qrtColor_ReferenceUV(pLightType) into tRefUV
+   put item 1 of tRefUV into tRefU
+   put item 2 of tRefUV into tRefV
+   local tCIEL, tCIEu, tCIEv
+   put (116 * tVarY) - 16 into tCIEL
+   put 13 * tCIEL * (tVarU - tRefU) into tCIEu
+   put 13 * tCIEL * (tVarV - tRefV) into tCIEv
+   return tCIEL & comma & tCIEu & comma & tCIEv
+end p_qrtColor_XYZ2CIELuv
+
+private function p_qrtColor_CIELuv2XYZ pCIELuvTriplet, pLightType
+   local tCIEL, tCIEu, tCIEv
+   put item 1 of pCIELuvTriplet into tCIEL
+   put item 2 of pCIELuvTriplet into tCIEu
+   put item 3 of pCIELuvTriplet into tCIEv
+   local tRefUV, tRefU, tRefV
+   put p_qrtColor_ReferenceUV(pLightType) into tRefUV
+   put item 1 of tRefUV into tRefU
+   put item 2 of tRefUV into tRefV
+   local tVarU, tVarV, tVarY
+   put tCIEu / (13 * tCIEL) + tRefU into tVarU
+   put tCIEv / (13 * tCIEL) + tRefV into tVarV
+   put (tCIEL + 16) / 116 into tVarY
+   put p_qrtColor_CIE2XYZ_Normalized(tVarY) into tVarY
+   local tX, tY, tZ
+   put tVarY * 100 into tY
+   put - (9 * tY * tVarU) / ((tVarU - 4) * tVarV - tVarU * tVarV) into tX
+   put (9 * tY - (15 * tVarV * tY) - (tVarV * tX)) / (3 * tVarV) into tZ
+   return tX & comma & tY & comma & tZ
+end p_qrtColor_CIELuv2XYZ
+
 private function p_qrtColor_XYZ2CIE_Normalized pVar
    local tVarN
    if pVar > 0.008856 then
@@ -999,6 +1072,18 @@ private function p_qrtColor_ReferenceXYZ pLightType
    end switch
    return tRefX & comma & tRefY & comma & tRefZ
 end p_qrtColor_ReferenceXYZ
+
+private function p_qrtColor_ReferenceUV pLightType
+   local tRefXYZ, tRefX, tRefY, tRefZ
+   put p_qrtColor_ReferenceXYZ(pLightType) into tRefXYZ
+   put item 1 of tRefXYZ into tRefX
+   put item 2 of tRefXYZ into tRefY
+   put item 3 of tRefXYZ into tRefZ
+   local tRefU, tRefV
+   put (4 * tRefX) / (tRefX + (15 * tRefY) + (3 * tRefZ)) into tRefU
+   put (9 * tRefY) / (tRefX + (15 * tRefY) + (3 * tRefZ)) into tRefV
+   return tRefU & comma & tRefV
+end p_qrtColor_ReferenceUV
 
 private function p_qrtColor_ColorToGray pRGBTriplet, pAlgorithm
    local tRed, tGreen, tBlue
