@@ -49,7 +49,6 @@ constant kGrayscaleAlgorithms = "decomposeValue,desaturate,hspBrightness,luminan
 
 --> script local variables
 
-local sLC4OrLater
 local sNamedColorsA
 
 --> engine message handlers
@@ -175,10 +174,6 @@ function qrtColor_RGBToYXY pRGBTriplet
    p_qrtColor_AssertRGBTriplet pRGBTriplet
    return p_qrtColor_XYZ2YXY(p_qrtColor_RGB2XYZ(pRGBTriplet))
 end qrtColor_RGBToYXY
-
-function qrtColor_EffectiveColor pColor
-   return p_qrtColor_EffectiveColor(pColor)
-end qrtColor_EffectiveColor
 
 function qrtColor_ColorToGray pRGBTriplet, pAlgorithm
    p_qrtColor_AssertRGBTriplet pRGBTriplet
@@ -846,26 +841,6 @@ private function p_qrtColor_OffsetColor pRGBTriplet, pHueOffset, pSaturationOffs
    return p_qrtColor_HSV2RGB(tHSVTriplet)
 end p_qrtColor_OffsetColor
 
-private function p_qrtColor_EffectiveColor pColor
-   if sLC4OrLater is empty then
-      local tVersionNumber
-      set the itemDelimiter to "."
-      put item 1 of the version >= 4 into sLC4OrLater
-   end if
-   --
-   local tEffectiveColor
-   if sLC4OrLater then
-      set the colorOverlay["color"] of the templateGraphic to pColor
-      put the colorOverlay["color"] of the templateGraphic into tEffectiveColor
-   else
-      set the backgroundColor of the templateGraphic to pColor
-      set the backPixel of the templateGraphic to the effective backPixel of the templateGraphic
-      put the backgroundColor of the templateGraphic into tEffectiveColor
-   end if
-   reset the templateGraphic
-   return tEffectiveColor
-end p_qrtColor_EffectiveColor
-
 private function p_qrtColor_WindowsColor pColorName
    local tColorRGB
    if the platform is "Win32" and "registryRead" is among the items of the securityPermissions then
@@ -909,10 +884,22 @@ end p_qrtColor_ResetNamedColors
 
 private command p_qrtColor_LoadLiveCodeColors pEffectiveFlag
    if pEffectiveFlag is true then
-      local tColorName
+      -- using colorOverlay is faster but requires engine version 4 or later
+      local tUseColorOverlay, tColorName, tEffectiveColor
+      set the itemDelimiter to "."
+      put item 1 of the version >= 4 into tUseColorOverlay
       repeat for each line tColorName in the colorNames
-         put p_qrtColor_EffectiveColor(tColorName) into sNamedColorsA[tColorName]
+         if tUseColorOverlay then
+            set the colorOverlay["color"] of the templateGraphic to tColorName
+            put the colorOverlay["color"] of the templateGraphic into tEffectiveColor
+         else
+            set the backgroundColor of the templateGraphic to tColorName
+            set the backPixel of the templateGraphic to the effective backPixel of the templateGraphic
+            put the backgroundColor of the templateGraphic into tEffectiveColor
+         end if
+         put tEffectiveColor into sNamedColorsA[tColorName]
       end repeat
+      reset the templateGraphic
    else
       -- the following entries were collected on Win32
       put "239,247,255" into sNamedColorsA["AliceBlue"]
