@@ -58,15 +58,22 @@ constant kGrayscaleAlgorithms = "decomposeValue,desaturate,hspBrightness,luminan
 -- comma-separated list of supported light types (as used in XYZ/CIELab conversion)
 constant kLightTypes = "A/2,A/10,C/2,C/10,D50/2,D50/10,D55/2,D55/10,D65/2,D65/10,D75/2,D75/10,F2/2,F2/10,F7/2,F7/10,F11/2,F11/10"
 
+-- default setting keys
+constant kDefaultBestTextAlgorithm = "BestTextAlgorithm"
+constant kDefaultDifferenceAlgorithm = "DifferenceAlgorithm"
+constant kDefaultGrayscaleAlgorithm = "GrayscaleAlgorithm"
+constant kDefaultLightType = "LightType"
+
 --> script local variables
 
+local sDefaultsA
 local sNamedColorsA
 
 --> engine message handlers
 
 on libraryStack
    if the target is me then
-      p_qrtColor_ResetNamedColors true
+      p_qrtColor_ResetAll
    end if
    pass libraryStack
 end libraryStack
@@ -76,6 +83,50 @@ end libraryStack
 function qrtColor_VersionNumber
    return kLibVersion
 end qrtColor_VersionNumber
+
+command qrtColor_ResetAll
+   p_qrtColor_ResetAll
+end qrtColor_ResetAll
+
+command qrtColor_ResetDefaults
+   p_qrtColor_ResetDefaults
+end qrtColor_ResetDefaults
+
+function qrtColor_DefaultBestTextAlgorithm
+   return sDefaultsA[kDefaultBestTextAlgorithm]
+end qrtColor_DefaultBestTextAlgorithm
+
+command qrtColor_SetDefaultBestTextAlgorithm pAlgorithm
+   p_qrtColor_AssertBestTextAlgorithm pAlgorithm
+   put pAlgorithm into sDefaultsA[kDefaultBestTextAlgorithm]
+end qrtColor_SetDefaultBestTextAlgorithm
+
+function qrtColor_DefaultDifferenceAlgorithm
+   return sDefaultsA[kDefaultDifferenceAlgorithm]
+end qrtColor_DefaultDifferenceAlgorithm
+
+command qrtColor_SetDefaultDifferenceAlgorithm pAlgorithm
+   p_qrtColor_AssertDifferenceAlgorithm pAlgorithm
+   put pAlgorithm into sDefaultsA[kDefaultDifferenceAlgorithm]
+end qrtColor_SetDefaultDifferenceAlgorithm
+
+function qrtColor_DefaultGrayscaleAlgorithm
+   return sDefaultsA[kDefaultGrayscaleAlgorithm]
+end qrtColor_DefaultGrayscaleAlgorithm
+
+command qrtColor_SetDefaultGrayscaleAlgorithm pAlgorithm
+   p_qrtColor_AssertGrayscaleAlgorithm pAlgorithm
+   put pAlgorithm into sDefaultsA[kDefaultGrayscaleAlgorithm]
+end qrtColor_SetDefaultGrayscaleAlgorithm
+
+function qrtColor_DefaultLightType
+   return sDefaultsA[kDefaultLightType]
+end qrtColor_DefaultLightType
+
+command qrtColor_SetDefaultLightType pLightType
+   p_qrtColor_AssertLightType pLightType
+   put pLightType into sDefaultsA[kDefaultLightType]
+end qrtColor_SetDefaultLightType
 
 command qrtColor_ResetNamedColors pEffectiveFlag
    p_qrtColor_ResetNamedColors pEffectiveFlag
@@ -208,69 +259,93 @@ end qrtColor_HunterLabToRGB
 
 function qrtColor_XYZToCIELab pXYZTriplet, pLightType
    p_qrtColor_AssertXYZTriplet pXYZTriplet
-   p_qrtColor_AssertLightType pLightType
+   if pLightType is empty
+   then put sDefaultsA[kDefaultLightType] into pLightType
+   else p_qrtColor_AssertLightType pLightType
    return p_qrtColor_XYZ2CIELab(pXYZTriplet, pLightType)
 end qrtColor_XYZToCIELab
 
 function qrtColor_CIELabToXYZ pCIELabTriplet, pLightType
    p_qrtColor_AssertCIELabTriplet pCIELabTriplet
-   p_qrtColor_AssertLightType pLightType
+   if pLightType is empty
+   then put sDefaultsA[kDefaultLightType] into pLightType
+   else p_qrtColor_AssertLightType pLightType
    return p_qrtColor_CIELab2XYZ(pCIELabTriplet, pLightType)
 end qrtColor_CIELabToXYZ
 
 function qrtColor_RGBToCIELab pRGBTriplet, pLightType
    p_qrtColor_AssertRGBTriplet pRGBTriplet
-   p_qrtColor_AssertLightType pLightType
+   if pLightType is empty
+   then put sDefaultsA[kDefaultLightType] into pLightType
+   else p_qrtColor_AssertLightType pLightType
    return p_qrtColor_XYZ2CIELab(p_qrtColor_RGB2XYZ(pRGBTriplet), pLightType)
 end qrtColor_RGBToCIELab
 
 function qrtColor_CIELabToRGB pCIELabTriplet, pLightType
    p_qrtColor_AssertCIELabTriplet pCIELabTriplet
-   p_qrtColor_AssertLightType pLightType
+   if pLightType is empty
+   then put sDefaultsA[kDefaultLightType] into pLightType
+   else p_qrtColor_AssertLightType pLightType
    return p_qrtColor_XYZ2RGB(p_qrtColor_CIELab2XYZ(pCIELabTriplet, pLightType))
 end qrtColor_CIELabToRGB
 
 function qrtColor_XYZToCIELuv pXYZTriplet, pLightType
    p_qrtColor_AssertXYZTriplet pXYZTriplet
-   p_qrtColor_AssertLightType pLightType
+   if pLightType is empty
+   then put sDefaultsA[kDefaultLightType] into pLightType
+   else p_qrtColor_AssertLightType pLightType
    return p_qrtColor_XYZ2CIELuv(pXYZTriplet, pLightType)
 end qrtColor_XYZToCIELuv
 
 function qrtColor_CIELuvToXYZ pCIELuvTriplet, pLightType
    p_qrtColor_AssertCIELuvTriplet pCIELuvTriplet
-   p_qrtColor_AssertLightType pLightType
+   if pLightType is empty
+   then put sDefaultsA[kDefaultLightType] into pLightType
+   else p_qrtColor_AssertLightType pLightType
    return p_qrtColor_CIELuv2XYZ(pCIELuvTriplet, pLightType)
 end qrtColor_CIELuvToXYZ
 
 function qrtColor_RGBToCIELuv pRGBTriplet, pLightType
    p_qrtColor_AssertRGBTriplet pRGBTriplet
-   p_qrtColor_AssertLightType pLightType
+   if pLightType is empty
+   then put sDefaultsA[kDefaultLightType] into pLightType
+   else p_qrtColor_AssertLightType pLightType
    return p_qrtColor_XYZ2CIELuv(p_qrtColor_RGB2XYZ(pRGBTriplet), pLightType)
 end qrtColor_RGBToCIELuv
 
 function qrtColor_CIELuvToRGB pCIELuvTriplet, pLightType
    p_qrtColor_AssertCIELuvTriplet pCIELuvTriplet
-   p_qrtColor_AssertLightType pLightType
+   if pLightType is empty
+   then put sDefaultsA[kDefaultLightType] into pLightType
+   else p_qrtColor_AssertLightType pLightType
    return p_qrtColor_XYZ2RGB(p_qrtColor_CIELuv2XYZ(pCIELuvTriplet, pLightType))
 end qrtColor_CIELuvToRGB
 
 function qrtColor_ColorDifference pRGBTriplet1, pRGBTriplet2, pLightType, pAlgorithm, pParams
    p_qrtColor_AssertRGBTriplet pRGBTriplet1
    p_qrtColor_AssertRGBTriplet pRGBTriplet2
-   p_qrtColor_AssertLightType pLightType
-   p_qrtColor_AssertDifferenceAlgorithm pAlgorithm, pParams
+   if pLightType is empty
+   then put sDefaultsA[kDefaultLightType] into pLightType
+   else p_qrtColor_AssertLightType pLightType
+   if pAlgorithm is empty
+   then put sDefaultsA[kDefaultDifferenceAlgorithm] into pAlgorithm
+   else p_qrtColor_AssertDifferenceAlgorithm pAlgorithm, pParams
    return p_qrtColor_ColorDifference(pRGBTriplet1, pRGBTriplet2, pLightType, pAlgorithm, pParams)
 end qrtColor_ColorDifference
 
 function qrtColor_ColorToGray pRGBTriplet, pAlgorithm
    p_qrtColor_AssertRGBTriplet pRGBTriplet
-   p_qrtColor_AssertGrayscaleAlgorithm pAlgorithm
+   if pAlgorithm is empty
+   then put sDefaultsA[kDefaultGrayscaleAlgorithm] into pAlgorithm
+   else p_qrtColor_AssertGrayscaleAlgorithm pAlgorithm
    return p_qrtColor_RGBColorToGray(pRGBTriplet, pAlgorithm)
 end qrtColor_ColorToGray
 
 function qrtColor_BestTextColor pRGBTriplet, pAlgorithm
    p_qrtColor_AssertRGBTriplet pRGBTriplet
-   p_qrtColor_AssertBestTextAlgorithm pAlgorithm
+   if pAlgorithm is empty
+   then put sDefaultsA[kDefaultBestTextAlgorithm] into pAlgorithm
+   else p_qrtColor_AssertBestTextAlgorithm pAlgorithm
    return p_qrtColor_BestTextColor(pRGBTriplet, pAlgorithm)
 end qrtColor_BestTextColor
 
@@ -1556,6 +1631,18 @@ private function p_qrtColor_WindowsColorsA
    end repeat
    return tColorsA
 end p_qrtColor_WindowsColorsA
+
+private command p_qrtColor_ResetAll
+   p_qrtColor_ResetDefaults
+   p_qrtColor_ResetNamedColors true
+end p_qrtColor_ResetAll
+
+private command p_qrtColor_ResetDefaults
+   put "rgbAverage" into sDefaultsA[kDefaultBestTextAlgorithm]
+   put "deltaE2000" into sDefaultsA[kDefaultDifferenceAlgorithm]
+   put "rgbAverage" into sDefaultsA[kDefaultGrayscaleAlgorithm]
+   put "D65/2" into sDefaultsA[kDefaultLightType]
+end p_qrtColor_ResetDefaults
 
 private command p_qrtColor_ResetNamedColors pEffectiveFlag
    put empty into sNamedColorsA
