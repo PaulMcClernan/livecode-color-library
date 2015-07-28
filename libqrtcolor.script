@@ -44,7 +44,7 @@ CONTRIBUTORS:
 --> constants
 
 constant kLibVersion = "2.0.0-dp"
-constant kLibDebugMode = "false"
+constant kLibErrorPrefix = "qrtcolorerr: "
 
 -- arbitrary factor for deriving brighter and darker colors
 -- as used in java.awt.Color#Brighter and java.awt.Color#Darker
@@ -81,8 +81,13 @@ end libraryStack
 --> public commands and functions
 
 function qrtColor_VersionNumber
-   return kLibVersion
+   -- deprecated but kept for backward-compatibility
+   return qrtColor_Version()
 end qrtColor_VersionNumber
+
+function qrtColor_Version
+   return kLibVersion
+end qrtColor_Version
 
 command qrtColor_ResetAll
    p_qrtColor_ResetAll
@@ -338,7 +343,7 @@ function qrtColor_ColorToGray pRGBTriplet, pAlgorithm
    if pAlgorithm is empty
    then put sDefaultsA[kDefaultGrayscaleAlgorithm] into pAlgorithm
    else p_qrtColor_AssertGrayscaleAlgorithm pAlgorithm
-   return p_qrtColor_RGBColorToGray(pRGBTriplet, pAlgorithm)
+   return p_qrtColor_ColorToGray(pRGBTriplet, pAlgorithm)
 end qrtColor_ColorToGray
 
 function qrtColor_BestTextColor pRGBTriplet, pAlgorithm
@@ -389,13 +394,13 @@ end qrtColor_WindowsColorsA
 
 private command p_qrtColor_AssertBestTextAlgorithm pAlgorithm
    if pAlgorithm is not among the items of kBestTextAlgorithms then
-      throw "BestTextAlgorithm: must be one of '" & kBestTextAlgorithms @ "'"
+      throw kLibErrorPrefix & "BestTextAlgorithm must be one of '" & kBestTextAlgorithms @ "'"
    end if
 end p_qrtColor_AssertBestTextAlgorithm
 
 private command p_qrtColor_AssertDifferenceAlgorithm pAlgorithm, pParams
    if pAlgorithm is not among the items of kDifferenceAlgorithms then
-      throw "DifferenceAlgorithm: must be one of '" & kDifferenceAlgorithms & "'"
+      throw kLibErrorPrefix & "DifferenceAlgorithm must be one of '" & kDifferenceAlgorithms & "'"
    end if
    if pAlgorithm is "deltaCMC" then
       if pParams is not empty then
@@ -410,13 +415,13 @@ end p_qrtColor_AssertDifferenceAlgorithm
 
 private command p_qrtColor_AssertGrayscaleAlgorithm pAlgorithm
    if pAlgorithm is not among the items of kGrayscaleAlgorithms then
-      throw "GrayscaleAlgorithm: must be one of '" & kGrayscaleAlgorithms & "'"
+      throw kLibErrorPrefix & "GrayscaleAlgorithm must be one of '" & kGrayscaleAlgorithms & "'"
    end if
 end p_qrtColor_AssertGrayscaleAlgorithm
 
 private command p_qrtColor_AssertLightType pLightType
    if pLightType is not among the items of kLightTypes then
-      throw "LightType: must be empty or one of '" & kLightTypes & "'"
+      throw kLibErrorPrefix & "LightType must be one of '" & kLightTypes & "'"
    end if
 end p_qrtColor_AssertLightType
 
@@ -431,19 +436,19 @@ private command p_qrtColor_AssertFactor pFactorName, @rFactorValue
       end if
    end if
    if rFactorValue is not a number or rFactorValue < 0 then
-      throw pFactorName & ": must be a positive number"
+      throw kLibErrorPrefix & pFactorName && "must be a positive number"
    end if
 end p_qrtColor_AssertFactor
 
 private command p_qrtColor_AssertOffset pOffsetName, pOffsetValue
    if pOffsetValue is not a number or abs(pOffsetValue) > 1 then
-      throw pOffsetName & ": must be a number in the range [0.0-1.0]"
+      throw kLibErrorPrefix & pOffsetName && "must be a number in the range [0.0-1.0]"
    end if
 end p_qrtColor_AssertOffset
 
 private command p_qrtColor_AssertColorName pName
    if sNamedColorsA[pName] is empty then
-      throw "Color name: '" & pName & "' is not a valid color name"
+      throw kLibErrorPrefix & "Color name '" & pName & "' is not a valid color name"
    end if
 end p_qrtColor_AssertColorName
 
@@ -463,7 +468,7 @@ private command p_qrtColor_AssertWebColor @rWebColor
       put p_qrtColor_IsHex(char 2 to 7 of rWebColor) into tValidFlag
    end if
    if tValidFlag is false then
-      throw "Web color: must be of the form '#NNN' or '#NNNNNN' where each N is in the range '[0-9][A-F]'"
+      throw kLibErrorPrefix & "Web color must be of the form '#NNN' or '#NNNNNN' where each N is in the range '[0-9][A-F]'"
    end if
 end p_qrtColor_AssertWebColor
 
@@ -477,7 +482,7 @@ private command p_qrtColor_AssertHexColor pHexColor
       put p_qrtColor_IsHex(char 3 to 8 of pHexColor) into tValidFlag
    end if
    if tValidFlag is false then
-      throw "Hex color: must be of the form '0xNNNNNN' where each N is in the range '[0-9][A-F]'"
+      throw kLibErrorPrefix & "Hex color must be of the form '0xNNNNNN' where each N is in the range '[0-9][A-F]'"
    end if
 end p_qrtColor_AssertHexColor
 
@@ -518,14 +523,14 @@ private command p_qrtColor_AssertTuple pTuple, pTypeName, pItemCount, pDataType,
    end if
    if tValidFlag is false then
       local tError
-      put pTypeName & ": must be of the form '" into tError
+      put pTypeName && "must be of the form '" into tError
       repeat with tIndex = 1 to pItemCount
          put "N," after tError
       end repeat
       put   "' where each N is a" && pDataType && \
             "in the range [" & pMinValue & "-" & pMaxValue & "]" \
             into char -1 of tError
-      throw tError
+      throw kLibErrorPrefix & tError
    end if
 end p_qrtColor_AssertTuple
 
@@ -547,7 +552,7 @@ private command p_qrtColor_AssertXYZTriplet pXYZTriplet
       end if
    end if
    if tValidFlag is false then
-      throw "XYZ color must be of the form 'X,Y,Z' where X is a number in the range [0-95.047], Y is a number in the range [0-100] and Z is a number in the range [0-108.883]"
+      throw kLibErrorPrefix & "XYZ color must be of the form 'X,Y,Z' where X is a number in the range [0-95.047], Y is a number in the range [0-100] and Z is a number in the range [0-108.883]"
    end if
 end p_qrtColor_AssertXYZTriplet
 
@@ -569,25 +574,25 @@ private command p_qrtColor_AssertYXYTriplet pYXYTriplet
       end if
    end if
    if tValidFlag is false then
-      throw "Yxy color must be of the form 'Y,x,y' where Y is a number in the range [0-100], x is a number in the range [0-1] and y is a number in the range [0-1]"
+      throw kLibErrorPrefix & "Yxy color must be of the form 'Y,x,y' where Y is a number in the range [0-100], x is a number in the range [0-1] and y is a number in the range [0-1]"
    end if
 end p_qrtColor_AssertYXYTriplet
 
 private command p_qrtColor_AssertHLabTriplet pHLabTriplet
    if not p_qrtColor_IsLabLuvTriplet(pHLabTriplet) then
-      throw "Hunter-Lab color must be of the form 'L,a,b' where L is a number in the range [0-100] and a and b are numbers greater than 0"
+      throw kLibErrorPrefix & "Hunter-Lab color must be of the form 'L,a,b' where L is a number in the range [0-100] and a and b are numbers greater than 0"
    end if
 end p_qrtColor_AssertHLabTriplet
 
 private command p_qrtColor_AssertCIELabTriplet pCIELabTriplet
    if not p_qrtColor_IsLabLuvTriplet(pCIELabTriplet) then
-      throw "CIE-L*ab color must be of the form 'L,a,b' where L is a number in the range [0-100] and a and b are numbers greater than 0"
+      throw kLibErrorPrefix & "CIE-L*ab color must be of the form 'L,a,b' where L is a number in the range [0-100] and a and b are numbers greater than 0"
    end if
 end p_qrtColor_AssertCIELabTriplet
 
 private command p_qrtColor_AssertCIELuvTriplet pCIELuvTriplet
    if not p_qrtColor_IsLabLuvTriplet(pCIELuvTriplet) then
-      throw "CIE-L*uv color must be of the form 'L,u,v' where L is a number in the range [0-100] and u and v are numbers greater than 0"
+      throw kLibErrorPrefix & "CIE-L*uv color must be of the form 'L,u,v' where L is a number in the range [0-100] and u and v are numbers greater than 0"
    end if
 end p_qrtColor_AssertCIELuvTriplet
 
