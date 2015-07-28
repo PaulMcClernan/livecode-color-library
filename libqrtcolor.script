@@ -26,13 +26,20 @@ licenses@quartam.com
 ACKNOWLEDGEMENTS:
 - Brighter/Darker algorithms adapted from: java.awt.Color
 - Color conversion algorithms adapted from: http://www.easyrgb.com/index.php?X=MATH
+- Color difference algorithms adapted from: http://www.easyrgb.com/index.php?X=DELT
 - HSP brightness algorithm adapted from: http://alienryderflex.com/hsp.html
 - Perceived brightness algorithm adapted from: http://www.nbdtech.com/Blog/archive/2008/04/27/Calculating-the-Perceived-Brightness-of-a-Color.aspx
 - RGB average text color algorithm adapted from: revDataGridLibrary > Behaviors > Data Grid script
 - Some Grayscale algorithms (decomposeValue, desaturate, luminance) adapted from: http://gimp-savvy.com/BOOK/index.html?node54.html
+- W3C Color difference algorithm adapted from: http://www.w3.org/TR/AERT
 - W3C CSS Color Module Level 3 information from: http://www.w3.org/TR/css3-color/
 */
 
+/*
+CONTRIBUTORS:
+- Michael Doub
+- Jan Schenkel
+*/
 
 --> constants
 
@@ -45,6 +52,7 @@ constant kDeriveFactor = 0.7
 
 -- comma-separated list of supported algorithms
 constant kBestTextAlgorithms = "perceivedBrightness,rgbAverage"
+constant kDifferenceAlgorithms = "deltaC,deltaCMC,deltaE,deltaE1994,deltaE2000,deltaH,w3cAERT"
 constant kGrayscaleAlgorithms = "decomposeValue,desaturate,hspBrightness,luminance,perceivedBrightness,rgbAverage"
 
 -- comma-separated list of supported light types (as used in XYZ/CIELab conversion)
@@ -246,6 +254,14 @@ function qrtColor_CIELuvToRGB pCIELuvTriplet, pLightType
    return p_qrtColor_XYZ2RGB(p_qrtColor_CIELuv2XYZ(pCIELuvTriplet, pLightType))
 end qrtColor_CIELuvToRGB
 
+function qrtColor_ColorDifference pRGBTriplet1, pRGBTriplet2, pLightType, pAlgorithm, pParams
+   p_qrtColor_AssertRGBTriplet pRGBTriplet1
+   p_qrtColor_AssertRGBTriplet pRGBTriplet2
+   p_qrtColor_AssertLightType pLightType
+   p_qrtColor_AssertDifferenceAlgorithm pAlgorithm, pParams
+   return p_qrtColor_ColorDifference(pRGBTriplet1, pRGBTriplet2, pLightType, pAlgorithm, pParams)
+end qrtColor_ColorDifference
+
 function qrtColor_ColorToGray pRGBTriplet, pAlgorithm
    p_qrtColor_AssertRGBTriplet pRGBTriplet
    p_qrtColor_AssertGrayscaleAlgorithm pAlgorithm
@@ -301,6 +317,21 @@ private command p_qrtColor_AssertBestTextAlgorithm pAlgorithm
       throw "BestTextAlgorithm: must be one of '" & kBestTextAlgorithms @ "'"
    end if
 end p_qrtColor_AssertBestTextAlgorithm
+
+private command p_qrtColor_AssertDifferenceAlgorithm pAlgorithm, pParams
+   if pAlgorithm is not among the items of kDifferenceAlgorithms then
+      throw "DifferenceAlgorithm: must be one of '" & kDifferenceAlgorithms & "'"
+   end if
+   if pAlgorithm is "deltaCMC" then
+      if pParams is not empty then
+         p_qrtColor_AssertTuple pParams, "Weight factors", 2, "number", 0.0, 1.0
+      end if
+   else if pAlgorithm is among the items of "deltaE1994,deltaE2000" then
+      if pParams is not empty then
+         p_qrtColor_AssertTuple pParams, "Weight factors", 3, "number", 0.0, 1.0
+      end if
+   end if
+end p_qrtColor_AssertDifferenceAlgorithm
 
 private command p_qrtColor_AssertGrayscaleAlgorithm pAlgorithm
    if pAlgorithm is not among the items of kGrayscaleAlgorithms then
@@ -1084,6 +1115,298 @@ private function p_qrtColor_ReferenceUV pLightType
    put (9 * tRefY) / (tRefX + (15 * tRefY) + (3 * tRefZ)) into tRefV
    return tRefU & comma & tRefV
 end p_qrtColor_ReferenceUV
+
+private function p_qrtColor_Difference pRGBTriplet1, pRGBTriplet2, pLightType, pAlgorithm, pParams
+   local tDifference, tCIELab1, tCIELab2
+   put p_qrtColor_XYZ2CIELab(p_qrtColor_RGB2XYZ(pRGBTriplet1), pLightType) into tCIELab1
+   put p_qrtColor_XYZ2CIELab(p_qrtColor_RGB2XYZ(pRGBTriplet2), pLightType) into tCIELab2
+   switch pAlgorithm
+      case "deltaC"
+         put p_qrtColor_Diff_DeltaC(tCIELab1, tCIELab2) into tDifference
+         break
+      case "deltaCMC"
+         put p_qrtColor_Diff_DeltaCMC(tCIELab1, tCIELab2, pParams) into tDifference
+         break
+      case "deltaE"
+         put p_qrtColor_Diff_DeltaE(tCIELab1, tCIELab2) into tDifference
+         break
+      case "deltaE1994"
+         put p_qrtColor_Diff_DeltaE1994(tCIELab1, tCIELab2, pParams) into tDifference
+         break
+      case "deltaE2000"
+         put p_qrtColor_Diff_DeltaE2000(tCIELab1, tCIELab2, pParams) into tDifference
+         break
+      case "deltaH"
+         put p_qrtColor_Diff_DeltaH(tCIELab1, tCIELab2) into tDifference
+         break
+      case "w3cAERT"
+         put p_qrtColor_Diff_W3cAERT(pRGBTriplet1, pRGBTriplet2) into tDifference
+         break
+   end switch
+   return tDifference
+end p_qrtColor_Difference
+
+private function p_qrtColor_Diff_DeltaC pLab1, pLab2
+   local tLL1, tLa1, tLb1
+   put item 1 of pLab1 into tLL1
+   put item 2 of pLab1 into tLa1
+   put item 3 of pLab1 into tLb1
+   local tLL2, tLa2, tLb2
+   put item 1 of pLab2 into tLL2
+   put item 2 of pLab2 into tLa2
+   put item 3 of pLab2 into tLb2
+   local tDeltaC
+   put     sqrt((tLa2 ^ 2) + (tLb2 ^ 2)) \
+         - sqrt((tLa1 ^ 2) + (tLb1 ^ 2)) into tDeltaC
+   return tDeltaC
+end p_qrtColor_Diff_DeltaC
+
+private function p_qrtColor_Diff_DeltaCMC pLab1, pLab2, pWeights
+   local tLL1, tLa1, tLb1
+   put item 1 of pLab1 into tLL1
+   put item 2 of pLab1 into tLa1
+   put item 3 of pLab1 into tLb1
+   local tLL2, tLa2, tLb2
+   put item 1 of pLab2 into tLL2
+   put item 2 of pLab2 into tLa2
+   put item 3 of pLab2 into tLb2
+   local tWL, tWC
+   if pWeights is empty then
+      put "1,1" into pWeights
+   end if
+   put item 1 of pWeights into tWL
+   put item 2 of pWeights into tWC
+   local tC1, tC2
+   put sqrt(tLa1 ^ 2 + tLb1 ^ 2) into tC1
+   put sqrt(tLa2 ^ 2 + tLb2 ^ 2) into tC2
+   local tFF, tH1
+   put sqrt((tC1 ^ 4) / ((tC1 ^ 4) + 1900)) into tFF
+   put p_crtColor_Diff_CIELab2Hue(tLa1, tLb1) into tH1
+   local tTT
+   if tH1 < 164 or tH1 > 345 then
+      put 0.36 + abs(0.4 * cos(p_qrtColor_Diff_Deg2Rad( 35 + tH1))) into tTT
+   else
+      put 0.56 + abs(0.2 * cos(p_qrtColor_Diff_Deg2Rad(168 + tH1))) into tTT
+   end if
+   local tSL, tSC, tSH, tDH
+   if tLL1 < 16 then
+      put 0.511 into tSL
+   else
+      put (0.040975 * tLL1) / (1 + 0.01765 * tLL1) into tSL
+   end if
+   put ((0.0638 * tC1) / (1 + 0.0131 * tC1)) + 0.638 into tSC
+   put ((tFF * tTT) + 1 - tFF) * tSC into tSH
+   put sqrt((tLa2 - tLa1) ^ 2 + (tLb2 - tLb1) ^ 2 - (tC2 - tC1) ^ 2) into tDH
+   multiply tSL by (tLL2 - tLL1) / tWL
+   multiply tSC by (tC2 - tC1) / tWC
+   put tDH / tSH into tSH
+   local tDeltaCMC
+   put sqrt(tSL ^ 2 + tSC ^ 2 + tSH ^ 2) into tDeltaCMC
+   return tDeltaCMC
+end p_qrtColor_Diff_DeltaCMC
+
+private function p_qrtColor_Diff_DeltaE pLab1, pLab2
+   local tLL1, tLa1, tLb1
+   put item 1 of pLab1 into tLL1
+   put item 2 of pLab1 into tLa1
+   put item 3 of pLab1 into tLb1
+   local tLL2, tLa2, tLb2
+   put item 1 of pLab2 into tLL2
+   put item 2 of pLab2 into tLa2
+   put item 3 of pLab2 into tLb2
+   local tDeltaE
+   put sqrt((tLL1 - tLL2) ^ 2 + (tLa1 - tLa2) ^ 2 + (tLb1 - tLb2) ^ 2) into tDeltaE
+   return tDeltaE
+end p_qrtColor_Diff_DeltaE
+
+private function p_qrtColor_Diff_DeltaE1994 pLab1, pLab2, pWeights
+   local tLL1, tLa1, tLb1
+   put item 1 of pLab1 into tLL1
+   put item 2 of pLab1 into tLa1
+   put item 3 of pLab1 into tLb1
+   local tLL2, tLa2, tLb2
+   put item 1 of pLab2 into tLL2
+   put item 2 of pLab2 into tLa2
+   put item 3 of pLab2 into tLb2
+   local tWL, tWC, tWH
+   if pWeights is empty then
+      put "1,1,1" into pWeights
+   end if
+   put item 1 of pWeights into tWL
+   put item 2 of pWeights into tWC
+   put item 3 of pWeights into tWH
+   local tC1, tC2
+   put sqrt(tLa1 ^ 2 + tLb1 ^ 2) into tC1
+   put sqrt(tLa2 ^ 2 + tLb2 ^ 2) into tC2
+   local tDL, tDC
+   put tLL2 - tLL1 into tDL
+   put tC2 - tC1 into tDC
+   local tDE
+   put sqrt((tLL1 - tLL2) ^ 2 + (tLa1 - tLa2) ^ 2 + (tLb1 - tLb2) ^ 2) into tDE
+   local tDH
+   if sqrt(tDE) > (sqrt(abs(tDL)) + sqrt(abs(tDC))) then
+      put sqrt(tDE ^ 2 - tDL ^ 2 - tDC ^2) into tDH
+   else
+      put 0 into tDH
+   end if
+   local tSC, tSH
+   put 1 + (0.045 * tC1) into tSC
+   put 1 + (0.015 * tC1) into tSH
+   divide tDL by tWL
+   divide tDC by tWC * tSC
+   divide tDH by tWH * tSH
+   local tDeltaE1994
+   put sqrt(tDL ^ 2 + tDC ^ 2 + tDH ^ 2) into tDeltaE1994
+   return tDeltaE1994
+end p_qrtColor_Diff_DeltaE1994
+
+private function p_qrtColor_Diff_DeltaE2000 pLab1, pLab2, pWeights
+   local tLL1, tLa1, tLb1
+   put item 1 of pLab1 into tLL1
+   put item 2 of pLab1 into tLa1
+   put item 3 of pLab1 into tLb1
+   local tLL2, tLa2, tLb2
+   put item 1 of pLab2 into tLL2
+   put item 2 of pLab2 into tLa2
+   put item 3 of pLab2 into tLb2
+   local tWL, tWC, tWH
+   if pWeights is empty then
+      put "1,1,1" into pWeights
+   end if
+   put item 1 of pWeights into tWL
+   put item 2 of pWeights into tWC
+   put item 3 of pWeights into tWH
+   local tC1, tC2
+   put sqrt(tLa1 ^ 2 + tLb1 ^ 2) into tC1
+   put sqrt(tLa2 ^ 2 + tLb2 ^ 2) into tC2
+   local tCX, tGX, tNN, tH1, tH2
+   put (tC1 + tC2) / 2 into tCX
+   put 0.5 * (1 - sqrt((tCX ^ 7) / (tCX ^ 7 + 25 ^ 7))) into tGX
+   put (1 + tGX) * tLa1 into tNN
+   put sqrt(tNN ^ 2 + tLb1 ^ 2) into tC1
+   put p_qrtColor_Diff_CIELab2Hue(tNN, tLb1) into tH1
+   put (1 + tGX) * tLa2 into tNN
+   put sqrt(tNN ^ 2 + tLb2 ^ 2) into tC1
+   put p_qrtColor_Diff_CIELab2Hue(tNN, tLb2) into tH2
+   local tDL, tDC, tDH
+   put tLL2 - tLL1 into tDL
+   put tC2 - tC1 into tDC
+   if tC1 * tC2 = 0 then
+      put 0 into tDH
+   else
+      put round(tH2 - tH1, 12) into tNN
+      if abs(tNN) <= 180 then
+         put tH2 - tH1 into tDH
+      else if tNN > 180 then
+         put tH2 - tH1 - 360 into tDH
+      else
+         put tH2 - tH1 + 360 into tDH
+      end if
+   end if
+   put 2 * sqrt(tC1 * tC2) * sin(p_qrtColor_Diff_Deg2Rad(tDH / 2)) into tDH
+   local tLX, tCY
+   put (tLL1 + tLL2) / 2 into tLX
+   put (tC1 + tC2) / 2 into tCY
+   local tHX
+   if tC1 * tC2 = 0 then
+      put tH1 + tH2 into tHX
+   else
+      put round(abs(tH1 - tH2), 12) into tNN
+      if tNN > 180 then
+         if tH2 + tH1 < 360 then
+            put tH1 + tH2 + 360 into tHX
+         else
+            put tH1 + tH2 - 360 into tHX
+         end if
+      else
+         put tH1 + tH2 into tHX
+      end if
+      divide tHX by 2
+   end if
+   local tTX, tPH, tRC, tSL, tSC, tSH, tRT
+   put 1 - 0.17 * cos(p_qrtColor_Diff_Deg2Rad(tHX - 30)) \
+         + 0.24 * cos(p_qrtColor_Diff_Deg2Rad(2 * tHX)) \
+         + 0.32 * cos(p_qrtColor_Diff_Deg2Rad(3 * tHX + 6)) \
+         - 0.20 * cos(p_qrtColor_Diff_Deg2Rad(4 * tHX - 63)) \
+         into tTX
+   put 30 * exp(-(((tHX - 275) / 25) ^ 2)) into tPH
+   put 2 * sqrt((tCY ^ 7) / (tCY ^ 7 + 25 ^ 7)) into tRC
+   put 1 + (0.015 * ((tLX - 50) ^ 2)) / sqrt(20 + ((tLX - 50) ^ 2)) into tSL
+   put 1 + 0.045 * tCY into tSL
+   put 1 + 0.015 * tCY * tTX into tSH
+   put -sin(p_qrtColor_Diff_Deg2Rad(2 * tPH)) * tRC into tRT
+   divide tDL by tWL * tSL
+   divide tDC by tWC * tSC
+   divide tDH by tWH * tSH
+   local tDeltaE2000
+   put sqrt(tDL ^ 2 + tDC ^ 2 + tDH ^ 2 + tRT * tDC * tDH) into tDeltaE2000
+   return tDeltaE2000
+end p_qrtColor_Diff_DeltaE2000
+
+private function p_qrtColor_Diff_DeltaH pLab1, pLab2
+   local tLL1, tLa1, tLb1
+   put item 1 of pLab1 into tLL1
+   put item 2 of pLab1 into tLa1
+   put item 3 of pLab1 into tLb1
+   local tLL2, tLa2, tLb2
+   put item 1 of pLab2 into tLL2
+   put item 2 of pLab2 into tLa2
+   put item 3 of pLab2 into tLb2
+   local tDeltaC
+   put     sqrt((tLa2 ^ 2) + (tLb2 ^ 2)) \
+         - sqrt((tLa1 ^ 2) + (tLb1 ^ 2)) into tDeltaC
+   local tDeltaH
+   put sqrt((tLa2 - tLa1) ^ 2 + (tLb2 - tLb1) ^ 2 - (tDeltaC ^ 2)) into tDeltaH
+   return tDeltaH
+end p_qrtColor_Diff_DeltaH
+
+private function p_qrtColor_Diff_CIELab2Hue pVarA, pVarB
+   local tBias, tCIEH
+   put 0 into tBias
+   if pVarA >= 0 and pVarB = 0 then
+      put 0 into tCIEH
+   else if pVarA < 0 and pVarB = 0 then
+      put 180 into tCIEH
+   else if pVarA = 0 and pVarB > 0 then
+      put 90 into tCIEH
+   else if pVarA = 0 and pVarB < 0 then
+      put 270 into tCIEH
+   else
+      if pVarA > 0 and pVarB > 0 then
+         put 0 into tBias
+      else if pVarA < 0 then
+         put 180 into tBias
+      else if pVarA > 0 and pVarB < 0 then
+         put 360 into tBias
+      end if
+      put p_qrtColor_Diff_Rad2Deg(atan(pVarB / pVarA)) + tBias into tCIEH
+   end if
+end p_qrtColor_Diff_CIELab2Hue
+
+private function p_qrtColor_Diff_Deg2Rad pDegrees
+   return pDegrees * pi / 180
+end p_qrtColor_Diff_Deg2Rad
+
+private function p_qrtColor_Diff_Rad2Deg pRadians
+   return pRadians * 180 / pi
+end p_qrtColor_Diff_Rad2Deg
+
+private function p_qrtColor_Diff_W3cAERT pRGBTriplet1, pRGBTriplet2
+   local tRed1, tGreen1, tBlue1
+   put item 1 of pRGBTriplet1 into tRed1
+   put item 2 of pRGBTriplet1 into tGreen1
+   put item 3 of pRGBTriplet1 into tBlue1
+   local tRed2, tGreen2, tBlue2
+   put item 1 of pRGBTriplet1 into tRed2
+   put item 2 of pRGBTriplet1 into tGreen2
+   put item 3 of pRGBTriplet1 into tBlue2
+   local tDifference
+   put     max(tRed1  , tRed2  ) - min(tRed1  , tRed2  ) \
+         + max(tGreen1, tGreen2) - min(tGreen1, tGreen2) \
+         + max(tBlue1 , tBlue2 ) - min(tBlue1 , tBlue2 ) \
+         into tDifference
+   return tDifference
+end p_qrtColor_Diff_W3cAERT
 
 private function p_qrtColor_ColorToGray pRGBTriplet, pAlgorithm
    local tRed, tGreen, tBlue
