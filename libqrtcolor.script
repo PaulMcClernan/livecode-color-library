@@ -89,6 +89,22 @@ function qrtColor_Version
    return kLibVersion
 end qrtColor_Version
 
+function qrtColor_BestTextAlgorithms
+   return kBestTextAlgorithms
+end qrtColor_BestTextAlgorithms
+
+function qrtColor_DifferenceAlgorithms
+   return kDifferenceAlgorithms
+end qrtColor_DifferenceAlgorithms
+
+function qrtColor_GrayscaleAlgorithms
+   return kGrayscaleAlgorithms
+end qrtColor_GrayscaleAlgorithms
+
+function qrtColor_LightTypes
+   return kLightTypes
+end qrtColor_LightTypes
+
 command qrtColor_ResetAll
    p_qrtColor_ResetAll
 end qrtColor_ResetAll
